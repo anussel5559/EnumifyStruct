@@ -3,4 +3,11 @@ name = "enumify_struct"
 version = "0.1.0"
 edition = "2021"
 
+[workspace]
+members = ["crates/enumify_macro"]
+
+[workspace.dependencies]
+enumify_macro = {path = "./crates/enumify_macro", version = "0.1.3"}
+
 [dependencies]
+enumify_macro = {workspace = true}

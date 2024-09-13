@@ -1,0 +1,12 @@
+[package]
+name = "enumify_macro"
+version = "0.1.3"
+edition = "2021"
+
+[dependencies]
+proc-macro2 = { version = "1.0.70", features = [] }
+quote = { version = "1.0.33", features = [] }
+syn = { version = "2.0.39", features = [] }
+
+[lib]
+proc-macro = true

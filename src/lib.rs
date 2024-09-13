@@ -1,14 +1,46 @@
-pub fn add(left: u64, right: u64) -> u64 {
-    left + right
+pub use enumify_macro::enumify_struct;
+
+#[derive(Debug, PartialEq, Clone)]
+enum NotGeneric {
+    A(i32),
+    B(i32),
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
+#[derive(Debug, PartialEq, Clone)]
+enum Generic<T> {
+    Reference(String),
+    Value(T),
+}
 
-    #[test]
-    fn it_works() {
-        let result = add(2, 2);
-        assert_eq!(result, 4);
-    }
+#[derive(Debug, PartialEq, Clone)]
+#[enumify_struct(Generic)]
+struct LowerStruct {
+    a_prime: String,
+    b_prime: NotGeneric,
+    c_prime: Option<NotGeneric>,
+}
+
+#[enumify_struct(Generic)]
+struct ABCDE {
+    a: i32,
+    #[enumify_rename(EnumifiedLowerStruct)]
+    #[enumify_wrap]
+    b: LowerStruct,
+    c: NotGeneric,
+    d: Option<i32>,
+    f: Generic<String>,
+}
+
+fn test() {
+    let final_struct = EnumifiedABCDE {
+        a: Generic::Value(1),
+        b: Generic::Value(EnumifiedLowerStruct {
+            a_prime: Generic::Value("hello".into()),
+            b_prime: Generic::Value(NotGeneric::A(1)),
+            c_prime: Generic::Value(Some(NotGeneric::B(2))),
+        }),
+        c: Generic::Reference("world".into()),
+        d: Generic::Value(None),
+        f: Generic::Value("world".into()),
+    };
 }
