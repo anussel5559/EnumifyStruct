@@ -56,17 +56,6 @@ impl ResolveRef for NotGeneric {
     }
 }
 
-// impl ResolveToBase<EnumifiedLowerStruct> for
-// ReferentialEnum<EnumifiedLowerStruct> {     fn resolve_to_base(&self) ->
-// EnumifiedLowerStruct {         match self {
-//             ReferentialEnum::Reference(_) => {
-//                 panic!("cannot resolve to base for
-// ReferentialEnum::Reference")             }
-//             ReferentialEnum::Value(v) => v.clone(),
-//         }
-//     }
-// }
-
 impl ResolveRef for EnumifiedLowerStruct {
     type Base = EnumifiedLowerStruct;
     fn resolve_ref(reference: &str) -> Self::Base {
