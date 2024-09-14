@@ -1,6 +1,8 @@
 use quote::quote;
 
 mod enum_struct;
+#[cfg(test)]
+mod test;
 
 #[proc_macro_attribute]
 pub fn enumify_struct(

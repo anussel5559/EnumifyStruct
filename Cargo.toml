@@ -7,7 +7,7 @@ edition = "2021"
 members = ["crates/enumify_macro"]
 
 [workspace.dependencies]
-enumify_macro = {path = "./crates/enumify_macro", version = "0.1.11"}
+enumify_macro = {path = "./crates/enumify_macro", version = "0.1.0"}
 
 [dependencies]
 enumify_macro = {workspace = true}

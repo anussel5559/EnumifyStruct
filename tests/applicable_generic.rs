@@ -17,67 +17,6 @@ enum ReferentialEnum<T> {
     Value(T),
 }
 
-impl<T: Clone + ResolveRef<Base = T>> ResolveToBase<T> for ReferentialEnum<T> {
-    fn resolve_to_base(&self) -> T {
-        match self {
-            ReferentialEnum::Reference(ref_str) => T::resolve_ref(ref_str),
-            ReferentialEnum::Value(v) => v.clone(),
-        }
-    }
-}
-
-impl ResolveRef for String {
-    type Base = String;
-    fn resolve_ref(reference: &str) -> Self::Base {
-        // Implement your logic to resolve the reference string to a String
-        reference.to_string()
-    }
-}
-
-impl ResolveRef for i32 {
-    type Base = i32;
-    fn resolve_ref(reference: &str) -> Self::Base {
-        // Implement your logic to resolve the reference string to an i32
-        // For example, you could parse the string as an integer
-        reference.parse().unwrap_or(0)
-    }
-}
-
-impl ResolveRef for NotGeneric {
-    type Base = NotGeneric;
-    fn resolve_ref(reference: &str) -> Self::Base {
-        // Implement your logic to resolve the reference string to a NotGeneric
-        // For example, you could use a simple mapping
-        match reference {
-            "A" => NotGeneric::A(1),
-            "B" => NotGeneric::B(2),
-            _ => panic!("Unknown reference"),
-        }
-    }
-}
-
-impl ResolveRef for EnumifiedLowerStruct {
-    type Base = EnumifiedLowerStruct;
-    fn resolve_ref(reference: &str) -> Self::Base {
-        // Implement your logic to resolve the reference string to a
-        // EnumifiedLowerStruct For example, you could use a simple
-        // mapping
-        match reference {
-            "A" => EnumifiedLowerStruct {
-                a_prime: ReferentialEnum::Value("hello".into()),
-                b_prime: ReferentialEnum::Value(NotGeneric::A(1)),
-                c_prime: ReferentialEnum::Value("foo".into()),
-            },
-            "B" => EnumifiedLowerStruct {
-                a_prime: ReferentialEnum::Value("world".into()),
-                b_prime: ReferentialEnum::Value(NotGeneric::B(2)),
-                c_prime: ReferentialEnum::Value("bar".into()),
-            },
-            _ => panic!("Unknown reference"),
-        }
-    }
-}
-
 #[derive(Debug, PartialEq, Clone)]
 #[enumify_struct(ReferentialEnum)]
 struct LowerStruct {
@@ -95,6 +34,62 @@ struct HigherStruct {
     c: NotGeneric,
     d: i32,
     f: ReferentialEnum<String>,
+}
+
+impl<T: Clone + ResolveRef<Base = T>> ResolveToBase<T> for ReferentialEnum<T> {
+    fn resolve_to_base(&self) -> T {
+        match self {
+            ReferentialEnum::Reference(ref_str) => T::resolve_ref(ref_str),
+            ReferentialEnum::Value(v) => v.clone(),
+        }
+    }
+}
+
+// Each type used on a Struct that's enumified with ReferentialEnum must
+// implement ResolveRef as required by the implementation of ResolveToBase for
+// ReferentialEnum
+impl ResolveRef for String {
+    type Base = String;
+    fn resolve_ref(reference: &str) -> Self::Base {
+        reference.to_string()
+    }
+}
+
+impl ResolveRef for i32 {
+    type Base = i32;
+    fn resolve_ref(reference: &str) -> Self::Base {
+        reference.parse().unwrap_or(0)
+    }
+}
+
+impl ResolveRef for NotGeneric {
+    type Base = NotGeneric;
+    fn resolve_ref(reference: &str) -> Self::Base {
+        match reference {
+            "A" => NotGeneric::A(1),
+            "B" => NotGeneric::B(2),
+            _ => panic!("Unknown reference"),
+        }
+    }
+}
+
+impl ResolveRef for EnumifiedLowerStruct {
+    type Base = EnumifiedLowerStruct;
+    fn resolve_ref(reference: &str) -> Self::Base {
+        match reference {
+            "A" => EnumifiedLowerStruct {
+                a_prime: ReferentialEnum::Value("hello".into()),
+                b_prime: ReferentialEnum::Value(NotGeneric::A(1)),
+                c_prime: ReferentialEnum::Value("foo".into()),
+            },
+            "B" => EnumifiedLowerStruct {
+                a_prime: ReferentialEnum::Value("world".into()),
+                b_prime: ReferentialEnum::Value(NotGeneric::B(2)),
+                c_prime: ReferentialEnum::Value("bar".into()),
+            },
+            _ => panic!("Unknown reference"),
+        }
+    }
 }
 
 #[test]

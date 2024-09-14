@@ -53,9 +53,7 @@ impl GenerateApplicableImplVisitor {
         let orig_name = &orig.ident;
         let new_name = &new.ident;
         let acc_concrete = self.acc_concrete;
-        // TODO: everything was written with "t" as the parameter name, but this
-        // a. does not match the trait and b. is not explicit enough.
-        // Make this some parameter instead.
+
         quote! {
             impl #impl_generics enumify_struct::Applicable for #new_name #ty_generics {
                 type Base = #orig_name #ty_generics;
@@ -368,7 +366,7 @@ fn is_type_target_enum(t: &Type, target_enum: &Ident) -> bool {
     macro_rules! wtf {
         ($reason : tt) => {
             panic!(
-                "Using enumify_struct for a struct containing a {} is dubious...",
+                "Using enumify_struct for a struct containing a {} is not valid.",
                 $reason
             )
         };
@@ -398,15 +396,7 @@ fn is_type_target_enum(t: &Type, target_enum: &Ident) -> bool {
         Type::Ptr(_) => wtf!("pointer"),
         Type::BareFn(_) => wtf!("function pointer"),
 
-        // Help
-        Type::Verbatim(_) => {
-            todo!("Didn't get what this was supposed to be...")
-        }
-        Type::Group(_) => todo!("Not sure what to do here"),
-
-        // Have to wildcard here but I don't want to (unneeded as long as syn
-        // doesn't break semver anyway)
-        _ => panic!("Open an issue please :)"),
+        _ => panic!("Open an issue please"),
     }
 }
 

@@ -4,7 +4,7 @@ version = 3
 
 [[package]]
 name = "enumify_macro"
-version = "0.1.11"
+version = "0.1.0"
 dependencies = [
  "proc-macro2",
  "quote",
