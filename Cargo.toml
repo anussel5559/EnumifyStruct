@@ -2,6 +2,12 @@
 name = "enumify_struct"
 version = "0.1.0"
 edition = "2021"
+license = "Apache-2.0"
+description = "A macro used to generate an enum-wrapped version of a base struct"
+homepage = "https://github.com/anussel5559/EnumifyStruct"
+repository = "https://github.com/anussel5559/EnumifyStruct"
+readme = "README.md"
+keywords = ["enum", "struct", "macro"]
 
 [workspace]
 members = ["crates/enumify_macro"]
