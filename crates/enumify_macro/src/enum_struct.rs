@@ -2,11 +2,12 @@ use std::collections::HashSet;
 
 use proc_macro2::{TokenStream, TokenTree};
 use quote::{format_ident, quote};
-use syn::parse::{Parse, ParseStream};
-use syn::punctuated::Punctuated;
-use syn::token::Comma;
 use syn::{
-    spanned::Spanned, Attribute, Data, DeriveInput, Field, Fields, Ident, Path, Token, Type,
+    parse::{Parse, ParseStream},
+    punctuated::Punctuated,
+    spanned::Spanned,
+    token::Comma,
+    Attribute, Data, DeriveInput, Field, Fields, Ident, Path, Token, Type,
     Visibility,
 };
 
@@ -32,6 +33,110 @@ trait EnumFieldVisitor {
     );
 }
 
+struct GenerateApplicableImplVisitor {
+    acc_concrete: TokenStream,
+}
+
+impl GenerateApplicableImplVisitor {
+    fn new() -> Self {
+        GenerateApplicableImplVisitor {
+            acc_concrete: quote! {},
+        }
+    }
+
+    fn get_implementation(
+        self,
+        orig: &DeriveInput,
+        new: &DeriveInput,
+    ) -> TokenStream {
+        let (impl_generics, ty_generics, _) = orig.generics.split_for_impl();
+        let orig_name = &orig.ident;
+        let new_name = &new.ident;
+        let acc_concrete = self.acc_concrete;
+        // TODO: everything was written with "t" as the parameter name, but this
+        // a. does not match the trait and b. is not explicit enough.
+        // Make this some parameter instead.
+        quote! {
+            impl #impl_generics enumify_struct::Applicable for #new_name #ty_generics {
+                type Base = #orig_name #ty_generics;
+
+                fn apply_to(self, t: &mut Self::Base) {
+                    #acc_concrete
+                }
+            }
+        }
+    }
+
+    fn get_incremental_setter_concrete(
+        ident: &TokenStream,
+        is_wrapped: bool,
+        is_nested: bool,
+        is_base_enum: bool,
+    ) -> TokenStream {
+        match (is_base_enum, is_wrapped, is_nested) {
+            (true, false, true) => quote! {
+                if let Some(existing) = &mut t.#ident {
+                    self.#ident.apply_to(existing);
+                } else {
+                    t.#ident = self.#ident.try_into().ok();
+                }
+            },
+            (true, false, false) => quote! {
+                t.#ident = self.#ident;
+            },
+            (false, false, true) => {
+                quote! { self.#ident.apply_to(&mut t.#ident); }
+            }
+            (false, false, false) => quote! { t.#ident = self.#ident; },
+            (true, true, true) => {
+                quote! { if let (Some(inner), Some(target)) = (self.#ident, &mut t.#ident) { inner.apply_to(target); } }
+            }
+            (false, true, true) => {
+                quote! {
+                    let inner = self.#ident.resolve_to_base();
+                    inner.apply_to(&mut t.#ident);
+                }
+            }
+            (_, true, false) => {
+                quote! { t.#ident = self.#ident.resolve_to_base(); }
+            }
+        }
+    }
+}
+
+impl EnumFieldVisitor for GenerateApplicableImplVisitor {
+    fn visit(
+        &mut self,
+        global_options: &GlobalOptions,
+        old_field: &mut Field,
+        _new_field: &mut Field,
+        field_options: &FieldOptions,
+    ) {
+        let ident = &field_options.field_ident;
+        let cfg_attr = &field_options.cfg_attribute;
+
+        let is_wrapped = field_options.wrapping_behavior;
+        let is_nested = field_options.new_type.is_some();
+        let is_base_enum =
+            is_type_target_enum(&old_field.ty, &global_options.target_enum);
+
+        let inc_concrete = Self::get_incremental_setter_concrete(
+            ident,
+            is_wrapped,
+            is_nested,
+            is_base_enum,
+        );
+
+        let acc_concrete = &self.acc_concrete;
+        self.acc_concrete = quote! {
+            #acc_concrete
+
+            #cfg_attr
+            #inc_concrete
+        };
+    }
+}
+
 struct SetNewFieldVisibilityVisitor;
 
 impl EnumFieldVisitor for SetNewFieldVisibilityVisitor {
@@ -43,7 +148,8 @@ impl EnumFieldVisitor for SetNewFieldVisibilityVisitor {
         _field_options: &FieldOptions,
     ) {
         if global_options.make_fields_public {
-            new_field.vis = Visibility::Public(syn::token::Pub(new_field.vis.span()))
+            new_field.vis =
+                Visibility::Public(syn::token::Pub(new_field.vis.span()))
         }
     }
 }
@@ -99,7 +205,8 @@ impl EnumFieldVisitor for RemoveHelperAttributesVisitor {
             })
             .collect::<Vec<_>>();
 
-        // Don't forget to reverse so the indices are removed without being shifted!
+        // Don't forget to reverse so the indices are removed without being
+        // shifted!
         for i in indexes_to_remove.into_iter().rev() {
             old_field.attrs.swap_remove(i);
             new_field.attrs.swap_remove(i);
@@ -107,7 +214,9 @@ impl EnumFieldVisitor for RemoveHelperAttributesVisitor {
     }
 }
 
-fn borrow_fields(derive_input: &mut DeriveInput) -> &mut Punctuated<Field, Comma> {
+fn borrow_fields(
+    derive_input: &mut DeriveInput,
+) -> &mut Punctuated<Field, Comma> {
     let data_struct = match &mut derive_input.data {
         Data::Struct(data_struct) => data_struct,
         _ => panic!("enumify_struct only works for structs"),
@@ -116,7 +225,9 @@ fn borrow_fields(derive_input: &mut DeriveInput) -> &mut Punctuated<Field, Comma
     match &mut data_struct.fields {
         Fields::Unnamed(f) => &mut f.unnamed,
         Fields::Named(f) => &mut f.named,
-        Fields::Unit => unreachable!("A struct cannot have simply a unit field?"),
+        Fields::Unit => {
+            unreachable!("A struct cannot have simply a unit field?")
+        }
     }
 }
 
@@ -179,7 +290,10 @@ fn visit_fields(
     (orig, new)
 }
 
-fn get_derive_macros(new: &DeriveInput, extra_derive: &[String]) -> TokenStream {
+fn get_derive_macros(
+    new: &DeriveInput,
+    extra_derive: &[String],
+) -> TokenStream {
     let mut extra_derive = extra_derive.iter().collect::<HashSet<_>>();
     for attributes in &new.attrs {
         let _ = attributes.parse_nested_meta(|derived_trait| {
@@ -264,11 +378,15 @@ fn is_type_target_enum(t: &Type, target_enum: &Ident) -> bool {
         // real work
         Type::Path(type_path) => is_path_enum(&type_path.path, target_enum),
         Type::Array(_) | Type::Tuple(_) => false,
-        Type::Paren(type_paren) => is_type_target_enum(&type_paren.elem, target_enum),
+        Type::Paren(type_paren) => {
+            is_type_target_enum(&type_paren.elem, target_enum)
+        }
 
         // No clue what to do with those
         Type::ImplTrait(_) | Type::TraitObject(_) => {
-            panic!("Might already be the target_enum, but there is no way to tell")
+            panic!(
+                "Might already be the target_enum, but there is no way to tell"
+            )
         }
         Type::Infer(_) => panic!("If you cannot tell, neither can I"),
         Type::Macro(_) => panic!("Don't think I can handle this easily..."),
@@ -281,11 +399,13 @@ fn is_type_target_enum(t: &Type, target_enum: &Ident) -> bool {
         Type::BareFn(_) => wtf!("function pointer"),
 
         // Help
-        Type::Verbatim(_) => todo!("Didn't get what this was supposed to be..."),
+        Type::Verbatim(_) => {
+            todo!("Didn't get what this was supposed to be...")
+        }
         Type::Group(_) => todo!("Not sure what to do here"),
 
-        // Have to wildcard here but I don't want to (unneeded as long as syn doesn't break semver
-        // anyway)
+        // Have to wildcard here but I don't want to (unneeded as long as syn
+        // doesn't break semver anyway)
         _ => panic!("Open an issue please :)"),
     }
 }
@@ -299,10 +419,13 @@ struct GlobalOptions {
 }
 
 impl GlobalOptions {
-    fn new(attr: ParsedMacroParameters, struct_definition: &DeriveInput) -> Self {
-        let new_struct_name = attr
-            .new_struct_name
-            .unwrap_or_else(|| "Enumified".to_owned() + &struct_definition.ident.to_string());
+    fn new(
+        attr: ParsedMacroParameters,
+        struct_definition: &DeriveInput,
+    ) -> Self {
+        let new_struct_name = attr.new_struct_name.unwrap_or_else(|| {
+            "Enumified".to_owned() + &struct_definition.ident.to_string()
+        });
         let default_wrapping_behavior = attr.default_wrapping;
         let target_enum = attr.target_enum.unwrap();
         GlobalOptions {
@@ -323,25 +446,38 @@ pub struct EnumifyStructOutput {
     pub generated: TokenStream,
 }
 
-pub fn enumify_struct(attr: TokenStream, input: TokenStream) -> EnumifyStructOutput {
+pub fn enumify_struct(
+    attr: TokenStream,
+    input: TokenStream,
+) -> EnumifyStructOutput {
     let derive_input = syn::parse2::<DeriveInput>(input).unwrap();
-    let macro_params = GlobalOptions::new(syn::parse2::<_>(attr).unwrap(), &derive_input);
+    let macro_params =
+        GlobalOptions::new(syn::parse2::<_>(attr).unwrap(), &derive_input);
+
+    let mut applicable_impl_generator = GenerateApplicableImplVisitor::new();
 
     let mut visitors = [
         &mut RemoveHelperAttributesVisitor as &mut dyn EnumFieldVisitor,
         &mut SetNewFieldVisibilityVisitor,
         &mut SetNewFieldTypeVisitor,
+        &mut applicable_impl_generator,
     ];
 
-    let (orig, mut new) = visit_fields(&mut visitors, &macro_params, &derive_input);
+    let (orig, mut new) =
+        visit_fields(&mut visitors, &macro_params, &derive_input);
 
     new.ident = Ident::new(&macro_params.new_struct_name, new.ident.span());
+
+    let applicable_impl =
+        applicable_impl_generator.get_implementation(&derive_input, &new);
 
     let derives = get_derive_macros(&new, &macro_params.extra_derive);
 
     let generated = quote! {
         #derives
         #new
+
+        #applicable_impl
     };
 
     EnumifyStructOutput {
